@@ -102,3 +102,19 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# vscode
+.vscode
+
+# secrets
+secrets.json
+dump_secrets.py
+
+# avatar
+avatar.jpg
+
+# images
+images
+
+# logs
+*.log
