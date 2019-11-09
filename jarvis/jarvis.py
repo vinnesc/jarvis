@@ -15,6 +15,8 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from telepot import Bot, glance
 from telepot.loop import MessageLoop
 
+from pymongo import MongoClient
+
 logger = logging.getLogger()
 handler = logging.FileHandler('chat.log')
 console = logging.StreamHandler(sys.stdout)
@@ -26,11 +28,12 @@ logger.setLevel(logging.INFO)
 
 
 class Jarvis:
-    def __init__(self, secrets, bot_api, photo_api, music_api):
+    def __init__(self, secrets, bot_api, photo_api, music_api, db):
         self.secrets = secrets
         self.bot_api = bot_api
         self.photo_api = photo_api
         self.music_api = music_api
+        self.db = db
         self.saves_photos = False
 
         self.vibe_checks = ['images/vibe_check_0.jpg', 'images/vibe_check_1.jpg', 'images/vibe_check_2.jpg']
@@ -42,13 +45,40 @@ class Jarvis:
             logger.info('vibe_check read.')
             return f
     
-    def lottery(self, lottery_type):
+    def lottery(self, lottery_type, username):
         if lottery_type == 'sabe':
             is_sabe = random.randint(0, 1)
             sabe = 'sabe' if is_sabe else 'no sabe'
-            return sabe           
 
-    def sing(self, song, user):
+            records = self.db.users_score
+            result = records.find_one({'username': username})
+
+            if result is None and is_sabe:
+                logger.error('{user} got a point.'.format(user=username))
+                records.insert_one({'username': username, 'score': 1})
+            elif result is not None:
+                # Ugly logic change please
+                if result['score'] == 0 and not is_sabe:
+                    score = 0
+                else:
+                    score = 1 if is_sabe else -1
+                
+                logger.error('{user} {action} a point.'.format(user=username, action='got' if is_sabe else 'lost'))
+                records.update_one({'username': username}, {'$set': {'score': result['score'] + score}})
+
+            return sabe
+    
+    def get_score(self, username):
+        records = self.db.users_score
+        result = records.find_one({'username': username})
+
+        if result is None:
+            return 0
+        else:
+            return result['score']
+
+
+    def sing(self, song, username):
         # We already know the size of the playlist so no need to call it until we have everything
         tracks_first = self.music_api.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', limit=100)
         tracks_second = self.music_api.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', offset=100)
@@ -62,23 +92,26 @@ class Jarvis:
                 else:
                     return '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['preview_url'])
         
-        return 'Esa no la tengo @{user}'.format(user=user['username'])
+        return 'Esa no la tengo @{user}'.format(user=username)
         
 
-    def handle_command(self, chat, user, text):
+    def handle_command(self, chat, username, text):
         if 'sabe' in text:
-            sabe = self.lottery('sabe')
-            self.bot_api.sendMessage(chat['id'], '{sabe} @{user}'.format(user=user['username'], sabe=sabe))
+            sabe = self.lottery('sabe', username)
+            self.bot_api.sendMessage(chat['id'], '{sabe} @{user}'.format(user=username, sabe=sabe))
         elif text == 'vibe check':
             vibe_check = self.vibe_check()
             self.bot_api.sendPhoto(chat['id'], vibe_check)
         elif 'cantate' in text:
             song = text[8:]
-            response = self.sing(song, user)
+            response = self.sing(song, username)
             self.bot_api.sendMessage(chat['id'], response, parse_mode='Markdown')
         elif text == 'guarda foto':
             self.saves_photos = True
-            self.bot_api.sendMessage(chat['id'], 'Guardo la próxima foto', parse_mode='Markdown')
+            self.bot_api.sendMessage(chat['id'], 'Guardo la próxima foto')
+        elif text == 'puntuacion':
+            score = self.get_score(username)
+            self.bot_api.sendMessage(chat['id'], 'Tienes {score} puntos'.format(score=score))
 
 
     def save_photo(self, chat, photo):
@@ -117,7 +150,7 @@ class Jarvis:
             text = message['text'].lower()
             logger.info('{user}: {message}'.format(user=user['username'], message=text))
             
-            self.handle_command(chat, user, text)
+            self.handle_command(chat, user['username'], text)
         elif content_type == 'photo' and self.saves_photos:
             photos = message['photo']
             photo = photos[0] # Take lowest resolution
@@ -158,7 +191,10 @@ def main():
     secrets = load_secrets()
     bot_api, photo_api, music_api = setup_apis(secrets)
 
-    jarvis = Jarvis(secrets, bot_api, photo_api, music_api)
+    client = MongoClient("mongodb+srv://{user}:{password}@vinnesc-bot-ro85q.mongodb.net/test?retryWrites=true&w=majority".format(user=secrets['mongo']['user'], password=secrets['mongo']['password']))
+    db = client.get_database('users_db')
+
+    jarvis = Jarvis(secrets, bot_api, photo_api, music_api, db)
 
     jarvis.run()
     while True:
