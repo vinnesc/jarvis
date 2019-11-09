@@ -49,30 +49,20 @@ class Jarvis:
             return sabe           
 
     def sing(self, song, user):
+        # We already know the size of the playlist so no need to call it until we have everything
         tracks_first = self.music_api.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', limit=100)
         tracks_second = self.music_api.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', offset=100)
-        
-        found = False
-        for item in tracks_first['items']:
+
+        tracks = tracks_first['items'] + tracks_second['items']
+        for item in tracks:
             if song in item['track']['name'].lower():
                 logger.info('Cantando {song}'.format(song=song))
                 if not item['track']['preview_url']:
                     return '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['external_urls']['spotify'])
                 else:
                     return '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['preview_url'])
-            found = True
         
-        for item in tracks_second['items']:
-            if song in item['track']['name'].lower():
-                logger.info('Cantando {song}'.format(song=song))
-                if not item['track']['preview_url']:
-                    return '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['external_urls']['spotify'])
-                else:
-                    return '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['preview_url'])
-            found = True
-        
-        if not found:
-            return 'Esa no la tengo @{user}'.format(user=user['username'])
+        return 'Esa no la tengo @{user}'.format(user=user['username'])
         
 
     def handle_command(self, chat, user, text):
