@@ -35,18 +35,38 @@ class Jarvis:
         self.music_api = music_api
         self.db = db
         self.saves_photos = False
+        self.users = {
+            'vinnys' : 'vinnesc',
+            'vinny' : 'vinnesc',
+            'vini' : 'vinnesc',
+            'vinis' : 'vinnesc',
+            'edus' : 'edukite',
+            'edu' : 'edukite',
+            'edward' : 'edukite',
+            'carmelos' : 'rikuuuu',
+            'carmelo': 'rikuuuu',
+            'lluqui' : 'rikuuuu',
+            'lluquis' : 'rikuuuu'
+        }
 
         self.vibe_checks = ['images/vibe_check_0.jpg', 'images/vibe_check_1.jpg', 'images/vibe_check_2.jpg']
 
-    def vibe_check(self):
+    def vibe_check(self, chat):
         vibe_check = random.randint(0, len(self.vibe_checks) - 1)
             
         with open(self.vibe_checks[vibe_check], 'rb') as f:
             logger.info('vibe_check read.')
-            return f
+            self.bot_api.sendPhoto(chat['id'], f)
     
-    def lottery(self, lottery_type, username):
+    def lottery(self, lottery_type, text):
         if lottery_type == 'sabe':
+            username = None
+            for key, value in self.users.items():
+                if key in text:
+                    username = value
+            
+            if username is None:
+                return None
             is_sabe = random.randint(0, 1)
             sabe = 'sabe' if is_sabe else 'no sabe'
 
@@ -97,11 +117,11 @@ class Jarvis:
 
     def handle_command(self, chat, username, text):
         if 'sabe' in text:
-            sabe = self.lottery('sabe', username)
-            self.bot_api.sendMessage(chat['id'], '{sabe} @{user}'.format(user=username, sabe=sabe))
+            sabe = self.lottery('sabe', text)
+            if sabe is not None:
+                self.bot_api.sendMessage(chat['id'], '{sabe} @{user}'.format(user=username, sabe=sabe))
         elif text == 'vibe check':
-            vibe_check = self.vibe_check()
-            self.bot_api.sendPhoto(chat['id'], vibe_check)
+            self.vibe_check(chat)
         elif 'cantate' in text:
             song = text[8:]
             response = self.sing(song, username)
@@ -112,7 +132,9 @@ class Jarvis:
         elif text == 'puntuacion':
             score = self.get_score(username)
             self.bot_api.sendMessage(chat['id'], 'Tienes {score} puntos'.format(score=score))
-
+        elif text == 'mallorca':
+            mallorca = 'Coñazo de dia lol menudo calor hace aqui en mallorca ya tenemos las playas llenas y los guiris empiezan a llegst https://www.youtube.com/watch?v=FhvWTAAehBs'
+            self.bot_api.sendMessage(chat['id'], mallorca)
 
     def save_photo(self, chat, photo):
         photo_file = self.bot_api.getFile(photo['file_id'])
