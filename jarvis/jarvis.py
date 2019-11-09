@@ -8,6 +8,10 @@ import random
 from threading import Timer
 
 import pyimgur
+
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials 
+
 from telepot import Bot, glance
 from telepot.loop import MessageLoop
 
@@ -28,27 +32,64 @@ class Jarvis:
         with open('secrets.json', mode='r') as f:
             self.secrets = json.load(f)
         self.bot = Bot(self.secrets['telegram'])
+
         self.img_uploader = pyimgur.Imgur(self.secrets['imgur']['client_id'], self.secrets['imgur']['client_secret'])
-        self.last_update = 0
-    
+        self.saves_photos = False
+
+        client_credentials_manager = SpotifyClientCredentials(client_id=self.secrets['spotify']['client_id'], client_secret=self.secrets['spotify']['client_secret']) 
+        self.spotify = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+        self.spotify.trace = False
+
     def handle_message(self, message):
         content_type, chat_type, chat_id = glance(message)
         message_id = message['message_id']
         user =  message['from']
         chat = message['chat']
+        text = message['text'].lower()
         
         if content_type == 'text':
             logger.info('{user}: {message}'.format(user=user['username'], message=message['text']))
-            if 'el edus sabe' in message['text'] or 'el carmelos sabe' in message['text'] or 'el vinnys sabe' in message['text']:
+            if 'edus sabe' in text or 'carmelos sabe' in text or 'vinnys sabe' in text:
                 is_sabe = random.randint(0, 1)
                 sabe = 'sabe' if is_sabe else 'no sabe'
                 self.bot.sendMessage(chat['id'], '{sabe} @{user}'.format(user=user['username'], sabe=sabe))
-            elif message['text'] == 'vibe check':
+            elif text == 'vibe check':
                 vibe_check = random.randint(0, len(vibe_checks) - 1)
                 with open(vibe_checks[vibe_check], 'rb') as f:
                     self.bot.sendPhoto(chat['id'], f)
                     logger.info('vibe_check read.')
-        elif content_type == 'photo':
+            elif 'cantate' in text:
+                song = text[8:]
+
+                tracks_first = self.spotify.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', limit=100)
+                tracks_second = self.spotify.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', offset=100)
+                
+                found = False
+                for item in tracks_first['items']:
+                    if song in item['track']['name'].lower():
+                        logger.info('Cantando {song}'.format(song=song))
+                        if not item['track']['preview_url']:
+                            self.bot.sendMessage(chat['id'], '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['external_urls']['spotify']), parse_mode='Markdown')
+                        else:
+                            self.bot.sendMessage(chat['id'], '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['preview_url']), parse_mode='Markdown')
+                    found = True
+                
+                for item in tracks_second['items']:
+                    print(item['track']['name'])
+                    if song in item['track']['name'].lower():
+                        logger.info('Cantando {song}'.format(song=song))
+                        if not item['track']['preview_url']:
+                            self.bot.sendMessage(chat['id'], '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['external_urls']['spotify']), parse_mode='Markdown')
+                        else:
+                            self.bot.sendMessage(chat['id'], '[{song_name}]({song_link})'.format(song_name=item['track']['name'], song_link=item['track']['preview_url']), parse_mode='Markdown')
+                    found = True
+                
+                if not found:
+                    self.bot.sendMessage(chat['id'], 'Esa no la tengo @{user}'.format(user=user['username']))
+                
+            elif text == 'guarda foto':
+                self.saves_photos = True
+        elif content_type == 'photo' and self.saves_photos:
             photos = message['photo']
             photo = photos[0] # Take lowest resolution
 
@@ -71,6 +112,8 @@ class Jarvis:
                 deleter.start()
             else:
                 logger.error('Unable to download photo.')
+            
+            self.saves_photos = False
     
     def delete_image(self, image):
         image.delete()

@@ -118,3 +118,6 @@ images
 
 # logs
 *.log
+
+# cache
+*cache*
