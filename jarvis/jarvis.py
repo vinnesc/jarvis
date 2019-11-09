@@ -50,7 +50,7 @@ class Jarvis:
         }
 
         self.vibe_checks = ['images/vibe_check_0.jpg', 'images/vibe_check_1.jpg', 'images/vibe_check_2.jpg']
-
+        self.laughter = ['ipqebgqeg', 'wqiewqoeiowqewqe', 'asdowqpkdosa', 'asmdksaxz', 'nsadndwq', 'wqewoisa', 'ajsidxz', 'wqeqq']
     def vibe_check(self, chat):
         vibe_check = random.randint(0, len(self.vibe_checks) - 1)
             
@@ -98,6 +98,23 @@ class Jarvis:
             return result['score']
 
 
+    def laugh(self, chat):
+        logger.error('Laughing.')
+        count = 1
+        last_index = random.randint(0, len(self.laughter) - 1)
+        responses = [self.laughter[last_index]]
+        while count < 3:
+            new = random.randint(0, len(self.laughter) - 1)
+            if new == last_index:
+                continue
+            else:
+                responses.append(self.laughter[new])
+                last_index = new
+                count += 1
+
+        for response in responses:
+            self.bot_api.sendMessage(chat['id'], response)
+
     def sing(self, song, username):
         # We already know the size of the playlist so no need to call it until we have everything
         tracks_first = self.music_api.user_playlist_tracks(user='rolusito', playlist_id='2lDQRaS5bz2hiW3Ys9khZU', limit=100)
@@ -135,6 +152,8 @@ class Jarvis:
         elif text == 'mallorca':
             mallorca = 'Coñazo de dia lol menudo calor hace aqui en mallorca ya tenemos las playas llenas y los guiris empiezan a llegst https://www.youtube.com/watch?v=FhvWTAAehBs'
             self.bot_api.sendMessage(chat['id'], mallorca)
+        elif ' ' not in text and len(text) >= 10:
+            self.laugh(chat)
 
     def save_photo(self, chat, photo):
         photo_file = self.bot_api.getFile(photo['file_id'])
